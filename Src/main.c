@@ -4,6 +4,9 @@
 #include "string.h"
 #include "queue.h"
 #include "timebase.h"
+#include <stdarg.h>
+#include <stdio.h>   // for vsprintf
+#include <string.h>  // for strlen
 /*
  * SCL PB6
  * SDA PB9
@@ -12,6 +15,7 @@
 //
 uint8_t a[QUEUE_SIZE];
 USART_Handle_t usart_init;
+USART_Handle_t usartdebug;
 uint8_t data;
 char buf[] = "Test string";
 UART_Queue_t q={
@@ -21,6 +25,16 @@ UART_Queue_t q={
 		.tail=0
 };
 volatile int i=0;
+void printmsg(char *format,...)
+{
+	char str [80];
+	va_list args;
+	va_start(args,format);
+	vsprintf(str,format,args);
+	USART_SendData(&usartdebug,(uint8_t*)str, strlen(str));
+	va_end(args);
+
+}
 void delay()
 {
 	for(int i=0;i<=80000;i++)
@@ -75,6 +89,13 @@ void USART_GPIOInits(void)
 	USARTpins.GPIO_pin.GPIO_PinNumber=11;
 	GPIO_init(&USARTpins);
 
+	USARTpins.pGPIOx = GPIOA;
+	USARTpins.GPIO_pin.GPIO_PinNumber=2;
+	//USART2 RX PA3  ; TX PA2
+	GPIO_init(&USARTpins);
+	USARTpins.GPIO_pin.GPIO_PinNumber=3;
+	GPIO_init(&USARTpins);
+
 	GPIO_Handle_t pGPIOA ;
 	pGPIOA.pGPIOx=GPIOA;
 	pGPIOA.GPIO_pin.GPIO_PinNumber=0;
@@ -100,10 +121,18 @@ void USART_Inits()
 	usart_init.USART_Config.USART_WordLength = USART_WORDLEN_8BITS;
 	usart_init.USART_Config.USART_RXInterruptEnl = ENABLE;
 
-
-
 	USART_Init(&usart_init);
 	USART_IRQConfig(39,ENABLE);
+
+	usartdebug.pUSARTx = USART2;
+	usartdebug.USART_Config.USART_Baud = USART_STD_BAUD_115200;
+	usartdebug.USART_Config.USART_Mode = USART_MODE_ONLY_TX;
+	usartdebug.USART_Config.USART_NoOfStopBits = USART_STOPBITS_1 ;
+	usartdebug.USART_Config.USART_ParityControl = USART_PARITY_DISABLE;
+	usartdebug.USART_Config.USART_HWFlowControl =  USART_HW_FLOW_CTRL_NONE;
+	usartdebug.USART_Config.USART_WordLength = USART_WORDLEN_8BITS;
+
+	USART_Init(&usartdebug);
 
 }
 int main()
@@ -113,8 +142,8 @@ int main()
 	USART_GPIOInits();
 	USART_Inits();
 	USART_PeripheralControl(USART3,ENABLE);
+	USART_PeripheralControl(USART2,ENABLE);
 	GPIO_IRQConfig(6,ENABLE);
-	//USART_PeripheralControl(USART2,ENABLE);
 
 
 
@@ -124,7 +153,7 @@ int main()
 
 	while(1)
 	{
-		USART_SendData(&usart_init,(uint8_t*)buf, strlen(buf));
+		printmsg("Number of ticks = %d\n",getTicks());
 		delayTicks(1000);
 
 	}
