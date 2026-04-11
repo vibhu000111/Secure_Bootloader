@@ -1,0 +1,9 @@
+stm32f4xx_USART_driver.c:14:10:getPCLK1Frequ	16	static
+stm32f4xx_USART_driver.c:65:10:getPCLK2Frequ	16	static
+stm32f4xx_USART_driver.c:116:6:USART_PeriClockControl	16	static
+stm32f4xx_USART_driver.c:174:6:USART_PeripheralControl	16	static
+stm32f4xx_USART_driver.c:185:9:USART_GetFlagStatus	24	static
+stm32f4xx_USART_driver.c:191:6:USART_Init	24	static
+stm32f4xx_USART_driver.c:289:6:USART_SetBaudRate	40	static
+stm32f4xx_USART_driver.c:352:6:USART_SendData	32	static
+stm32f4xx_USART_driver.c:398:6:USART_IRQConfig	40	static

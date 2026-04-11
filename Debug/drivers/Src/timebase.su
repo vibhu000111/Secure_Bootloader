@@ -1,0 +1,4 @@
+timebase.c:11:6:init_systick_timer	32	static
+timebase.c:39:6:SysTick_Handler	4	static
+timebase.c:43:10:getTicks	4	static
+timebase.c:47:6:delayTicks	24	static

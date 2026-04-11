@@ -1,0 +1,13 @@
+stm32407xx_gpio_driver.c:24:6:GPIO_init	40	static
+stm32407xx_gpio_driver.c:158:6:GPIO_deinit	16	static
+stm32407xx_gpio_driver.c:209:6:GPIO_Peripehral_clk_control	16	static
+stm32407xx_gpio_driver.c:289:9:GPIO_ReadInputPin	24	static
+stm32407xx_gpio_driver.c:298:10:GPIO_ReadInputPort	24	static
+stm32407xx_gpio_driver.c:307:6:GPIO_WriteOutputPort	16	static
+stm32407xx_gpio_driver.c:311:6:GPIO_WriteOutputPin	16	static
+stm32407xx_gpio_driver.c:323:6:GPIO_ToggleOutputPin	16	static
+stm32407xx_gpio_driver.c:337:6:GPIO_altfn	4	static
+stm32407xx_gpio_driver.c:342:10:GPIO_baseaddr_to_code	24	static
+stm32407xx_gpio_driver.c:368:6:GPIO_IRQConfig	40	static
+stm32407xx_gpio_driver.c:403:6:GPIO_IRQ_PriorityConfig	32	static
+stm32407xx_gpio_driver.c:418:6:GPIO_IRQHandling	16	static
