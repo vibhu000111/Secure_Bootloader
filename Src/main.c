@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <stdio.h>   // for vsprintf
 #include <string.h>  // for strlen
+#define APP_ADDR 0x08008000
 /*
  * SCL PB6
  * SDA PB9
@@ -35,6 +36,23 @@ void printmsg(char *format,...)
 	va_end(args);
 
 }
+void jump_to_app()
+{
+	uint32_t MSP_value = *(uint32_t*)(APP_ADDR); //  MSP value the first address stores the MSP value
+
+	void (*app_reset_handler) (void);
+	app_reset_handler = (void*) *(uint32_t*)(APP_ADDR+4);
+	printmsg ("MSP value = %x\n   ",MSP_value);
+	//__set_MSP(MSP_value);
+	//__asm volatile ("MSR MSP, %0" : : "r" (MSP_value)); //
+	__asm volatile("LDR R0,=0x08008000");
+	__asm volatile("LDR R1,[R0]");
+	__asm volatile("MSR MSP,R1");
+
+	app_reset_handler();
+
+
+}
 void delay()
 {
 	for(int i=0;i<=80000;i++)
@@ -43,22 +61,7 @@ void delay()
 	}
 }
 
-void EXTI0_IRQHandler()
-{
-	delay();
-		//char user_data[] = "Hi Alok\r\nEnter your Account number\r\n";
-	char y[]="Overflown\r\n";
-		uint8_t len = strlen(y);
-		if(q.count>=256)
-		USART_SendData(&usart_init, (uint8_t*)y, len);
 
-		i=0;
-		GPIO_IRQHandling(0);
-		uint32_t* pNVIC_ICPR0=(uint32_t*)(0XE000E280);
-				*pNVIC_ICPR0|=(1<<6);
-
-
-}
 void USART3_IRQHandler()
 {
 
@@ -96,14 +99,14 @@ void USART_GPIOInits(void)
 	USARTpins.GPIO_pin.GPIO_PinNumber=3;
 	GPIO_init(&USARTpins);
 
-	GPIO_Handle_t pGPIOA ;
-	pGPIOA.pGPIOx=GPIOA;
-	pGPIOA.GPIO_pin.GPIO_PinNumber=0;
-	pGPIOA.GPIO_pin.GPIO_PinMode=GPIO_MODE_RT;
-	pGPIOA.GPIO_pin.GPIO_PinOPType=0;
-	pGPIOA.GPIO_pin.GPIO_PinPUPD= GPIO_NO_PUPD;
-	pGPIOA.GPIO_pin.GPIO_PinSpeed=GPIO_SPEED_HIGH;
-	GPIO_init(&pGPIOA);
+	GPIO_Handle_t pushbutton;
+	pushbutton.pGPIOx=GPIOE;
+	pushbutton.GPIO_pin.GPIO_PinNumber=4;
+	pushbutton.GPIO_pin.GPIO_PinMode=INPUT;
+	pushbutton.GPIO_pin.GPIO_PinOPType=0;
+	pushbutton.GPIO_pin.GPIO_PinPUPD = GPIO_PU;
+	pushbutton.GPIO_pin.GPIO_PinSpeed=GPIO_SPEED_HIGH;
+	GPIO_init(&pushbutton);
 
 
 }
@@ -143,7 +146,7 @@ int main()
 	USART_Inits();
 	USART_PeripheralControl(USART3,ENABLE);
 	USART_PeripheralControl(USART2,ENABLE);
-	GPIO_IRQConfig(6,ENABLE);
+//	GPIO_IRQConfig(6,ENABLE);
 
 
 
@@ -153,8 +156,20 @@ int main()
 
 	while(1)
 	{
-		printmsg("Number of ticks = %d\n",getTicks());
-		delayTicks(1000);
+		printmsg("In bootloader mode\n");
+		delayTicks(1000);// delay of 200 ms
+		if(GPIO_ReadInputPin(GPIOE,4) == 0)
+		{
+			printmsg("Continuing into bootloader mode.. timeout set to 1 second\n");
+
+		}
+		else
+		{
+			printmsg("Jumping to application code\n in 5 seconds\n");
+			delayTicks(5000);
+			jump_to_app();
+
+		}
 
 	}
 
