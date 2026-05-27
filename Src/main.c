@@ -8,6 +8,7 @@
 #include <stdio.h>   // for vsprintf
 #include <string.h>  // for strlen
 #define APP_ADDR 0x08008000
+#define CHIP_ID_ADDR (uint32_t*) 0xE0042000
 /*
  * SCL PB6
  * SDA PB9
@@ -18,6 +19,16 @@ uint8_t a[QUEUE_SIZE];
 USART_Handle_t usart_init;
 USART_Handle_t usartdebug;
 uint8_t data;
+struct dataoveruart {
+	uint8_t command;
+	uint8_t length;
+	uint8_t payload[8];
+};
+struct dataoveruart parsed={
+	.command = 0,
+	.length =0,
+	.payload={0}
+};
 char buf[] = "Test string";
 UART_Queue_t q={
 		.buffer={0},
@@ -26,6 +37,18 @@ UART_Queue_t q={
 		.tail=0
 };
 volatile int i=0;
+void printchipid()
+{
+	uint32_t chipid  = *CHIP_ID_ADDR & 0x7ff;
+	printmsg("Chip ID = %x\n",chipid);
+}
+void print_supported_commands()
+{
+	printmsg("BL_GET_VER\n");
+	printmsg("BL_GET_HELP\n");
+	printmsg("BL_GET_CID\n");
+
+}
 void printmsg(char *format,...)
 {
 	char str [80];
@@ -36,6 +59,29 @@ void printmsg(char *format,...)
 	va_end(args);
 
 }
+void parser(struct dataoveruart* x)
+{
+	uint8_t data;
+	int ret_code = Queue_Dequeue(&q,&data);
+	if(ret_code == 0 && data == 0xAA)
+	{
+		ret_code = Queue_Dequeue(&q,&data);
+		x->command = data;
+		ret_code = Queue_Dequeue(&q,&data);
+		x->length = data;
+		for(uint8_t i = 0 ; i<x->length;i++)
+		{
+		    ret_code = Queue_Dequeue(&q, &data);
+		    x->payload[i] = data;
+		}
+		//printmsg("Command = %d  Length = %d payload = %d ",x->command,x->length,x->payload);
+
+	}
+	else if(ret_code == -1)
+	{
+		//printmsg("Queue is empty \n");
+	}
+}
 void jump_to_app()
 {
 	uint32_t MSP_value = *(uint32_t*)(APP_ADDR); //  MSP value the first address stores the MSP value
@@ -44,12 +90,32 @@ void jump_to_app()
 	app_reset_handler = (void*) *(uint32_t*)(APP_ADDR+4);
 	printmsg ("MSP value = %x\n   ",MSP_value);
 	//__set_MSP(MSP_value);
-	//__asm volatile ("MSR MSP, %0" : : "r" (MSP_value)); //
-	__asm volatile("LDR R0,=0x08008000");
-	__asm volatile("LDR R1,[R0]");
-	__asm volatile("MSR MSP,R1");
+	/* Disable USARTs */
+	USART2->USART_CR1 = 0;
+	USART3->USART_CR1 = 0;
 
-	app_reset_handler();
+	/* Stop SysTick */
+	//SysTick->CTRL = 0;
+//	SysTick->LOAD = 0;
+//	SysTick->VAL = 0;
+
+	/* Clear NVIC */
+//	for(int i=0;i<8;i++)
+//	{
+//	    NVIC->ICER[i] = 0xFFFFFFFF;
+//	    NVIC->ICPR[i] = 0xFFFFFFFF;
+//	}
+	   __asm volatile ("cpsid i");
+	uint32_t* VTOR = (uint32_t*) 0xE000ED08;
+	*VTOR = APP_ADDR;
+
+	__asm volatile ("MSR MSP, %0" : : "r" (MSP_value)); //
+//	__asm volatile("LDR R0,=0x08008000");
+//	__asm volatile("LDR R1,[R0]");
+//	__asm volatile("MSR MSP,R1");
+
+	//app_reset_handler();
+	__asm volatile ("BX %0" : : "r" (app_reset_handler));
 
 
 }
@@ -72,6 +138,7 @@ void USART3_IRQHandler()
 	}
 
 }
+
 
 void USART_GPIOInits(void)
 {
@@ -156,20 +223,40 @@ int main()
 
 	while(1)
 	{
-		printmsg("In bootloader mode\n");
-		delayTicks(1000);// delay of 200 ms
-		if(GPIO_ReadInputPin(GPIOE,4) == 0)
-		{
+//		printmsg("In bootloader mode\n");
+//		delayTicks(1000);// delay of 200 ms
+		//if(GPIO_ReadInputPin(GPIOE,4) == 0)
+		//{
 			printmsg("Continuing into bootloader mode.. timeout set to 1 second\n");
 
-		}
-		else
-		{
-			printmsg("Jumping to application code\n in 5 seconds\n");
-			delayTicks(5000);
-			jump_to_app();
+			uint8_t flag = 1;
+			while(flag == 1)
+			{
 
-		}
+				parser(&parsed);
+				switch(parsed.command)
+				{
+				case 0x51:
+					printmsg("Bootloader Version 1.0\n");
+				case 0x52:
+					print_supported_commands();
+				case 0x53:
+					printchipid();
+				}
+
+				delayTicks(100);
+				memset(&parsed,0,sizeof(parsed));
+			}
+
+
+		//}
+//		else
+//		{
+//			printmsg("Jumping to application code\n in 1 seconds\n");
+//			delayTicks(1000);
+//			jump_to_app();
+//
+//		}
 
 	}
 

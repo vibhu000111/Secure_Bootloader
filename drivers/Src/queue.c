@@ -29,4 +29,32 @@ volatile uint8_t Queue_Enqueue(UART_Queue_t *q, uint8_t data)
 		return(1);
 	}
 }
+int Queue_Dequeue(UART_Queue_t *q, uint8_t *data)
+{
+	uint8_t *a = q->buffer;
+	if(q->count == 0)
+	{
+		return(-1);
+	}
+	else
+	{
+		*data =  a[q->head % QUEUE_SIZE];
+        q->head = (q->head + 1) % QUEUE_SIZE;
+        q->count--;
+        return(0);
+	}
+
+
+}
+uint8_t Queue_IsEmpty(UART_Queue_t *q)
+{
+	if (q->count == 0)
+	{
+		return(-1);
+	}
+	else
+	{
+		return(1);
+	}
+}
 
