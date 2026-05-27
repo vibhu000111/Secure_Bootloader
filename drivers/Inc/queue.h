@@ -37,7 +37,7 @@ volatile uint8_t Queue_Enqueue(UART_Queue_t *q, uint8_t data);
  * @param data Pointer to store the dequeued byte.
  * @return true if successful, false if queue is empty.
  */
-uint8_t Queue_Dequeue(UART_Queue_t *q, uint8_t *data);
+int Queue_Dequeue(UART_Queue_t *q , uint8_t* data);
 
 /**
  * @brief Returns the byte at the head without removing it.
