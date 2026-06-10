@@ -13,7 +13,7 @@ void Queue_Init(UART_Queue_t *q)
 	q->tail=0;
 }
 
-volatile uint8_t Queue_Enqueue(UART_Queue_t *q, uint8_t data)
+volatile int Queue_Enqueue(UART_Queue_t *q, uint8_t data)
 {
 	uint8_t *a = q->buffer;
 	if(q->count >= QUEUE_SIZE) // means queue has overflown

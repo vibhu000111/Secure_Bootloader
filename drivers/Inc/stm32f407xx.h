@@ -56,6 +56,7 @@ Basically this header file describes the microcontroller
 #define GPIOH_BASEADDR (AHB1PERIPH_BASE + 0x1C00)
 #define GPIOI_BASEADDR (AHB1PERIPH_BASE + 0x2000)
 #define RCC_BASEADDR (AHB1PERIPH_BASE + 0x3800)
+#define CRC_BASEADDR (AHB1PERIPH_BASE + 0x3000)
 // PROCESSOR SPECIFIC NVIC ENGINE REGISTERS
 #define NVIC_ISER_BASEADDR 0xE000E100U
 #define NVIC_ICER_BASEADDR 0xE000E180U
@@ -372,6 +373,13 @@ typedef struct
   volatile uint32_t SPI_I2SPR;
 }SPI_RegDef_t;
 
+typedef struct
+{
+	volatile uint32_t CRC_DR;
+	volatile uint32_t CRC_IDR;
+	volatile uint32_t CRC_CR;
+}CRC_RegDef_t;
+
 #define GPIOA  ((GPIO_RegDef_t*)  GPIOA_BASEADDR) // when GPIO_RegDef_t* pGPIOA = GPIOA it creates a pointer of type structure and the address it holds is base address of GPIOA peripheral register structure
 #define GPIOB  ((GPIO_RegDef_t*) GPIOB_BASEADDR)
 #define GPIOC  ((GPIO_RegDef_t*) GPIOC_BASEADDR)
@@ -393,6 +401,7 @@ typedef struct
 #define SPI1 ((SPI_RegDef_t*) SPI1_BASEADDR)
 #define SPI2 ((SPI_RegDef_t*) SPI2_BASEADDR)
 #define SPI3 ((SPI_RegDef_t*) SPI3_BASEADDR)
+#define CRC  ((CRC_RegDef_t*) CRC_BASEADDR)
 
 //I2C
 
@@ -466,6 +475,9 @@ typedef struct
 #define I2C1_PCLK_DI() (RCC->RCC_APB1ENR&=~(1<<21))
 #define I2C2_PCLK_DI() (RCC->RCC_APB1ENR&=~(1<<22))
 #define I2C3_PCLK_DI() (RCC->RCC_APB1ENR&=~(1<<23))
+
+//CLOCK enable macor for CRC peripheral
+#define CRC_PCLK_EN() (RCC->RCC_AHB1ENR|=(1<<12))
 
 
 
