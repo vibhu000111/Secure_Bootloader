@@ -7,8 +7,13 @@
 #include <stdarg.h>
 #include <stdio.h>   // for vsprintf
 #include <string.h>  // for strlen
+#include <main.h>
+#include <crc.h>
+#include <flash_driver.h>
 #define APP_ADDR 0x08008000
 #define CHIP_ID_ADDR (uint32_t*) 0xE0042000
+uint8_t buffer_rx[256] = {0};
+uint8_t data_w = 0x69;
 /*
  * SCL PB6
  * SDA PB9
@@ -22,12 +27,14 @@ uint8_t data;
 struct dataoveruart {
 	uint8_t command;
 	uint8_t length;
-	uint8_t payload[8];
+	uint8_t payload[256];
+	uint32_t crc;
 };
 struct dataoveruart parsed={
 	.command = 0,
 	.length =0,
-	.payload={0}
+	.payload={0},
+	.crc=0
 };
 char buf[] = "Test string";
 UART_Queue_t q={
@@ -37,18 +44,156 @@ UART_Queue_t q={
 		.tail=0
 };
 volatile int i=0;
+uint8_t ack = BL_ACK;
+uint8_t nack = BL_NACK;
+uint8_t curr_address = 0;
+/*
+uint8_t bootloader_verify_crc(uint8_t command,uint8_t len,uint8_t* payload,uint32_t crc_host)
+{
+   uint32_t accumulated_crc = 0xffffffff;
+   calculate_crc(&accumulated_crc, accumulated_crc);
+   calculate_crc(&accumulated_crc, command);
+   calculate_crc(&accumulated_crc, len);
+   for(uint8_t i=0;i<len;i++)
+   {
+	   calculate_crc(&accumulated_crc, payload[i]);
+   }
+   if(accumulated_crc == crc_host)
+   {
+	   return(1);
+   }
+   else
+   {
+	   return(0);
+   }
+
+}*/
+
+uint32_t crc32_stm32_style(uint8_t *data, uint32_t length)
+{
+    uint32_t crc = 0xFFFFFFFF;
+    uint32_t poly = 0x04C11DB7;
+
+    for(uint32_t i = 0; i < length; i++)
+    {
+        crc ^= ((uint32_t)data[i] << 24);
+
+        for(uint8_t bit = 0; bit < 8; bit++)
+        {
+            if(crc & 0x80000000)
+            {
+                crc = (crc << 1) ^ poly;
+            }
+            else
+            {
+                crc <<= 1;
+            }
+        }
+    }
+
+    return crc;
+}
+uint8_t bootloader_verify_crc(uint8_t command,
+                              uint8_t len,
+                              uint8_t *payload,
+                              uint32_t crc_host)
+{
+    uint8_t buffer[258];
+
+    buffer[0] = command;
+    buffer[1] = len;
+
+    for(uint8_t i = 0; i < len; i++)
+    {
+        buffer[2 + i] = payload[i];
+    }
+
+    uint32_t crc =
+        crc32_stm32_style(buffer, len + 2);
+
+    return (crc == crc_host);
+}
+////  Implementation of BL command handle functions ////
+void send_ack();
+void send_nack()
+{
+	USART_SendData(&usart_init, &nack , 1);
+}
+void send_ack()
+{
+
+	USART_SendData(&usart_init, &ack , 1);
+	printmsg("ACK SENT\n");
+}
 void printchipid()
 {
+	send_ack();
 	uint32_t chipid  = *CHIP_ID_ADDR & 0x7ff;
 	printmsg("Chip ID = %x\n",chipid);
 }
 void print_supported_commands()
 {
+	send_ack();
 	printmsg("BL_GET_VER\n");
 	printmsg("BL_GET_HELP\n");
 	printmsg("BL_GET_CID\n");
 
 }
+void erase_external_flash()
+
+{
+	uint32_t start = getTicks();
+	Flash_ChipErase();
+	uint32_t end =getTicks();
+	Flash_Read(0x001000,&buffer_rx,16);
+	uint8_t flag =1;
+	for(int i=0;i<16;i++)
+	{
+		if(buffer_rx[i]==0xff)
+		{
+			flag=1;
+		}
+		else
+		{
+			flag=0;// fail
+			send_nack();
+		}
+	}
+	if(flag == 1)
+	{
+		send_ack();
+		printmsg("Chip Erase successful\n");
+	}
+	else
+	{
+		printmsg("Chip erase failed\n");
+	}
+}
+void print_BL_ver()
+{
+	uint8_t bl_version;
+	// verify crc
+    if(bootloader_verify_crc(parsed.command,parsed.length,parsed.payload,parsed.crc))
+    {
+      printmsg("Checksum matched\n");
+      send_ack();
+    }
+    else
+    {
+    	printmsg("checksum failed");
+    	send_nack();
+    }
+
+}
+void write_external_flash()
+{
+	Flash_Page_Program(curr_address,parsed.payload,parsed.length);
+	curr_address=curr_address+parsed.length;
+	Flash_Read(0x000000,&buffer_rx, 256);
+}
+
+
+////   ***********************************************/////
 void printmsg(char *format,...)
 {
 	char str [80];
@@ -73,6 +218,11 @@ void parser(struct dataoveruart* x)
 		{
 		    ret_code = Queue_Dequeue(&q, &data);
 		    x->payload[i] = data;
+		}
+		for(uint8_t i=0;i<4;i++)
+		{
+			ret_code = Queue_Dequeue(&q, &data);
+			x->crc = (((x->crc) << 8) | data);
 		}
 		//printmsg("Command = %d  Length = %d payload = %d ",x->command,x->length,x->payload);
 
@@ -205,14 +355,29 @@ void USART_Inits()
 	USART_Init(&usartdebug);
 
 }
+
 int main()
 {
 	init_systick_timer(1000);
+	crc_init();
 	Queue_Init(&q);
 	USART_GPIOInits();
 	USART_Inits();
 	USART_PeripheralControl(USART3,ENABLE);
 	USART_PeripheralControl(USART2,ENABLE);
+	SPI1_GPIOInits();
+	flash_init();
+	Flash_read_jedec();
+	Flash_read_unique_id();
+
+	Flash_Read(0x000000,&buffer_rx, 256);
+	Flash_Write_Enable();
+	sector_erase(0x000000);
+	Flash_Read(0x000000,&buffer_rx, 256);
+	//Flash_Page_Program(0x001000,&data_w,256);
+	//Flash_Read(0x001000,&buffer_rx,16);
+
+
 //	GPIO_IRQConfig(6,ENABLE);
 
 
@@ -229,22 +394,33 @@ int main()
 		//{
 			printmsg("Continuing into bootloader mode.. timeout set to 1 second\n");
 
-			uint8_t flag = 1;
-			while(flag == 1)
-			{
 
+			while(1)
+			{
 				parser(&parsed);
 				switch(parsed.command)
 				{
 				case 0x51:
-					printmsg("Bootloader Version 1.0\n");
+					print_BL_ver();
+					//USART_SendData(&usart_init, &ack , 1);
+					//printmsg("Bootloader Version 1.0\n");
+					break;
 				case 0x52:
 					print_supported_commands();
+					break;
 				case 0x53:
 					printchipid();
+					break;
+				 case BL_FLASH_ERASE:
+                    erase_external_flash();
+					break;
+				 case BL_MEM_WRITE:
+					 write_external_flash();
+				default:
+				break;
 				}
+				delayTicks(1000);
 
-				delayTicks(100);
 				memset(&parsed,0,sizeof(parsed));
 			}
 

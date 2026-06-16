@@ -43,7 +43,7 @@ void SysTick_Handler()
 uint32_t getTicks()
 {
 	return(gTicks);
-}
+ }
 void delayTicks(uint32_t delay_ms)
 {
     uint32_t CurrTick = getTicks();
